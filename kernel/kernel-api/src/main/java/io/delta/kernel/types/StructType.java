@@ -15,10 +15,16 @@
  */
 package io.delta.kernel.types;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import io.delta.kernel.annotation.Evolving;
 import io.delta.kernel.expressions.Column;
 import io.delta.kernel.internal.types.DataTypeJsonSerDe;
 import io.delta.kernel.internal.util.Tuple2;
+
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -32,6 +38,7 @@ import java.util.stream.IntStream;
 public final class StructType extends DataType {
 
   private final Map<String, Tuple2<StructField, Integer>> nameToFieldAndOrdinal;
+  //@JsonSerialize(using = StructType.FieldsSerializer.class)
   private final List<StructField> fields;
   private final List<String> fieldNames;
 
@@ -117,6 +124,18 @@ public final class StructType extends DataType {
    */
   public String toJson() {
     return DataTypeJsonSerDe.serializeStructType(this);
+  }
+
+  class FieldsSerializer extends JsonSerializer<List<StructField>> {
+
+    @Override
+    public void serialize(List<StructField> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+      gen.writeStartArray();
+      for (StructField field : value) {
+        gen.writeObject(field);
+      }
+      gen.writeEndArray();
+    }
   }
 
   @Override
