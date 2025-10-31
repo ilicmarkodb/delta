@@ -182,23 +182,23 @@ class DataSkippingUtilsSuite extends AnyFunSuite with TestUtils {
   }
 
   test("pruneStatsSchema - collated min/max columns") {
-    val utf8Lcase = CollationIdentifier.fromString("SPARK.UTF8_LCASE.75")
-    val unicode = CollationIdentifier.fromString("ICU.UNICODE.74.1")
-
-    val s1Field = new StructField("s1", new StringType(utf8Lcase), true)
-    val s2Field = new StructField("nested", new StructType().add("s2", StringType.STRING), true)
-    val dataSchema = new StructType()
-      .add(s1Field)
-      .add("i1", INTEGER)
-      .add("i2", INTEGER)
-      .add(s2Field)
-    val s1AndS2Fields = new StructType()
-      .add(s1Field)
-      .add(s2Field)
-
+    val utf8Lcase = CollationIdentifier.fromString("SPARK.UTF8_LCASE")
+    val unicode = CollationIdentifier.fromString("ICU.UNICODE")
     val testSchema = new StructType()
-      .add(MIN, dataSchema)
-      .add(MAX, dataSchema)
+      .add(
+        MIN,
+        new StructType()
+          .add("s1", StringType.STRING)
+          .add("i1", INTEGER)
+          .add("i2", INTEGER)
+          .add("nested", new StructType().add("s2", StringType.STRING)))
+      .add(
+        MAX,
+        new StructType()
+          .add("s1", StringType.STRING)
+          .add("i1", INTEGER)
+          .add("i2", INTEGER)
+          .add("nested", new StructType().add("s2", StringType.STRING)))
       .add(
         STATS_WITH_COLLATION,
         new StructType()
@@ -207,19 +207,27 @@ class DataSkippingUtilsSuite extends AnyFunSuite with TestUtils {
             new StructType()
               .add(
                 MIN,
-                s1AndS2Fields)
+                new StructType()
+                  .add("s1", StringType.STRING)
+                  .add("nested", new StructType().add("s2", StringType.STRING)))
               .add(
                 MAX,
-                s1AndS2Fields))
+                new StructType()
+                  .add("s1", StringType.STRING)
+                  .add("nested", new StructType().add("s2", StringType.STRING))))
           .add(
             unicode.toString,
             new StructType()
               .add(
                 MIN,
-                s1AndS2Fields)
+                new StructType()
+                  .add("s1", StringType.STRING)
+                  .add("nested", new StructType().add("s2", StringType.STRING)))
               .add(
                 MAX,
-                s1AndS2Fields)))
+                new StructType()
+                  .add("s1", StringType.STRING)
+                  .add("nested", new StructType().add("s2", StringType.STRING)))))
 
     val testCases = Seq(
       (
@@ -228,7 +236,7 @@ class DataSkippingUtilsSuite extends AnyFunSuite with TestUtils {
           .add(
             MIN,
             new StructType()
-              .add(s2Field))
+              .add("nested", new StructType().add("s2", StringType.STRING)))
           .add(
             MAX,
             new StructType()
@@ -246,13 +254,15 @@ class DataSkippingUtilsSuite extends AnyFunSuite with TestUtils {
                 new StructType()
                   .add(
                     MIN,
-                    new StructType().add(s1Field)))
+                    new StructType().add("s1", StringType.STRING)))
               .add(
                 unicode.toString,
                 new StructType()
                   .add(
                     MAX,
-                    new StructType().add(s2Field))))),
+                    new StructType().add(
+                      "nested",
+                      new StructType().add("s2", StringType.STRING)))))),
       (
         Set(
           nestedCol(s"$MIN.i2"),
@@ -272,11 +282,11 @@ class DataSkippingUtilsSuite extends AnyFunSuite with TestUtils {
                   .add(
                     MIN,
                     new StructType()
-                      .add(s2Field))
+                      .add("nested", new StructType().add("s2", StringType.STRING)))
                   .add(
                     MAX,
                     new StructType()
-                      .add(s2Field))))))
+                      .add("nested", new StructType().add("s2", StringType.STRING)))))))
 
     testCases.foreach { case (referencedCols, expectedSchema) =>
       checkPruneStatsSchema(testSchema, referencedCols, expectedSchema)
@@ -467,8 +477,8 @@ class DataSkippingUtilsSuite extends AnyFunSuite with TestUtils {
   }
 
   test("check constructDataSkippingFilter with collations") {
-    val utf8Lcase = CollationIdentifier.fromString("SPARK.UTF8_LCASE.75")
-    val unicode = CollationIdentifier.fromString("ICU.UNICODE.74.1")
+    val utf8Lcase = CollationIdentifier.fromString("SPARK.UTF8_LCASE")
+    val unicode = CollationIdentifier.fromString("ICU.UNICODE")
 
     val testCases = Seq(
       // (schema, predicate, expectedDataSkippingPredicateOpt)
@@ -612,28 +622,6 @@ class DataSkippingUtilsSuite extends AnyFunSuite with TestUtils {
         case _ =>
           fail(s"Expected $expectedDataSkippingPredicateOpt, found $dataSkippingPredicateOpt")
       }
-    }
-  }
-
-  test("check constructDataSkippingFilter with collations (no version in collation)") {
-    val utf8Lcase = CollationIdentifier.fromString("SPARK.UTF8_LCASE")
-    val unicode = CollationIdentifier.fromString("ICU.UNICODE")
-
-    val testCases = Seq(
-      (
-        new StructType()
-          .add("a", StringType.STRING)
-          .add("b", StringType.STRING),
-        createPredicate("<", col("a"), literal("m"), Optional.of(unicode))),
-      (
-        new StructType()
-          .add("a", StringType.STRING),
-        createPredicate("<", literal("m"), col("a"), Optional.of(utf8Lcase))))
-
-    testCases.foreach { case (schema, predicate) =>
-      val dataSkippingPredicateOpt =
-        JavaOptionalOps(constructDataSkippingFilter(predicate, schema)).toScala
-      assert(dataSkippingPredicateOpt.isEmpty)
     }
   }
 }
